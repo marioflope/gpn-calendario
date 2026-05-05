@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GPN">
+<meta name="theme-color" content="#ffffff">
+<title>GPN · Calendario</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  :root{
+    --bg:#ffffff; --bg2:#f5f5f3; --bg3:#efefec;
+    --text:#1a1a18; --text2:#6b6b66; --text3:#9a9a94;
+    --border:rgba(0,0,0,.12); --border2:rgba(0,0,0,.22);
+    --radius:8px; --radius-lg:12px;
+    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  @media(prefers-color-scheme:dark){:root{
+    --bg:#1c1c1e; --bg2:#2c2c2e; --bg3:#3a3a3c;
+    --text:#f2f2f7; --text2:#aeaeb2; --text3:#636366;
+    --border:rgba(255,255,255,.12); --border2:rgba(255,255,255,.22);
+  }}
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:14px;min-height:100vh;overscroll-behavior:none}
+  button,input,select,textarea{font-family:var(--font);font-size:14px;color:var(--text);background:var(--bg2);border:.5px solid var(--border);border-radius:var(--radius);padding:6px 10px;outline:none;-webkit-appearance:none}
+  button{cursor:pointer;background:var(--bg2);padding:7px 14px}
+  button:active{opacity:.7}
+  input:focus,textarea:focus,select:focus{border-color:var(--border2)}
+  a{color:inherit;text-decoration:none}
+
+  /* LAYOUT */
+  .app{display:flex;flex-direction:column;height:100dvh}
+  .topbar{padding:12px 16px 8px;border-bottom:.5px solid var(--border);background:var(--bg);position:sticky;top:0;z-index:10}
+  .topbar h1{font-size:17px;font-weight:600;letter-spacing:-.3px}
+  .topbar p{font-size:11px;color:var(--text2);margin-top:1px}
+  .scroll-area{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 12px 100px}
+
+  /* BOTTOM TABS */
+  .bottom-tabs{position:fixed;bottom:0;left:0;right:0;background:var(--bg);border-top:.5px solid var(--border);display:flex;padding-bottom:env(safe-area-inset-bottom);z-index:20}
+  .bt{flex:1;display:flex;flex-direction:column;align-items:center;padding:8px 4px 4px;font-size:10px;color:var(--text3);cursor:pointer;gap:3px}
+  .bt.active{color:#378ADD}
+  .bt-ic{font-size:20px;line-height:1}
+
+  /* CALENDAR */
+  .cal-toolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+  .cal-toolbar button{padding:5px 12px;font-size:13px}
+  .cal-title{font-size:15px;font-weight:500}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+  .cal-dh{font-size:10px;color:var(--text2);text-align:center;padding:3px 0 5px;font-weight:500}
+  .dc{min-height:68px;border:.5px solid var(--border);border-radius:var(--radius);padding:4px;background:var(--bg);position:relative}
+  .dc.om{opacity:.25}
+  .dc.today .dn{background:#378ADD;color:#fff;border-radius:50%}
+  .dc.hl{border-color:#EF9F27;border-width:1.5px}
+  .dc.drag-over{background:var(--bg3);outline:2px dashed var(--border2);outline-offset:-2px}
+  .dn{font-size:10px;font-weight:500;color:var(--text2);width:18px;height:18px;display:flex;align-items:center;justify-content:center;margin-bottom:2px}
+  .dlabel{font-size:8px;color:#BA7517;margin-bottom:2px;font-style:italic;line-height:1.2}
+  .pp{display:flex;align-items:center;gap:2px;padding:2px 4px;border-radius:99px;font-size:9px;margin-bottom:2px;cursor:pointer;width:100%;-webkit-user-select:none;user-select:none}
+  .pp .pt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1}
+  .pp.done{opacity:.4;text-decoration:line-through}
+  .pp.edited{outline:1.5px dashed currentColor;outline-offset:1px}
+  .add-day{position:absolute;bottom:3px;right:3px;width:14px;height:14px;border-radius:50%;border:.5px solid var(--border);background:var(--bg2);color:var(--text2);display:none;align-items:center;justify-content:center;font-size:12px;cursor:pointer;line-height:1}
+  .dc:hover .add-day{display:flex}
+
+  /* NET FILTERS */
+  .nfs{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px}
+  .nf{padding:4px 10px;border-radius:99px;font-size:11px;font-weight:500;cursor:pointer;border:1.5px solid transparent;user-select:none;transition:opacity .15s}
+  .nf.off{opacity:.3}
+
+  /* PLAN */
+  .plan-day{margin-bottom:10px;border:.5px solid var(--border);border-radius:var(--radius-lg);overflow:hidden}
+  .pdh{padding:8px 12px;font-size:12px;font-weight:500;background:var(--bg2);display:flex;justify-content:space-between;align-items:center}
+  .pdh .badge{font-size:10px;font-weight:400;color:var(--text2)}
+  .pi{padding:10px 12px;border-top:.5px solid var(--border);display:flex;align-items:flex-start;gap:8px;cursor:pointer;background:var(--bg)}
+  .pi:active{background:var(--bg2)}
+  .pi.done{opacity:.45}
+  .pi-l{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:34px}
+  .pi-t{font-size:10px;color:var(--text2)}
+  .pi-b{flex:1}
+  .pi-title{font-size:13px;font-weight:500}
+  .pi-desc{font-size:11px;color:var(--text2);margin-top:2px;line-height:1.4}
+  .edit-badge{font-size:9px;color:#BA7517;background:#FAEEDA;padding:1px 5px;border-radius:99px;margin-left:4px}
+
+  /* TRACKING */
+  .trk-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .trk-table{border-collapse:collapse;font-size:12px;min-width:700px;width:100%}
+  .trk-table th{padding:8px 8px;background:var(--bg2);color:var(--text2);font-weight:500;text-align:center;border:.5px solid var(--border);white-space:nowrap;font-size:11px;position:sticky;top:0}
+  .trk-table td{padding:5px 6px;border:.5px solid var(--border);text-align:center;vertical-align:middle}
+  .trk-table tr:nth-child(even) td{background:var(--bg2)}
+  .trk-table input[type=number]{width:58px;font-size:13px;font-weight:500;border:none;background:transparent;color:var(--text);padding:2px 4px;text-align:center;outline:none}
+  .trk-table input[type=number]:focus{background:var(--bg3);border-radius:4px}
+  .trk-table input[type=text]{width:100%;font-size:11px;border:none;background:transparent;color:var(--text2);padding:2px 4px;outline:none;min-width:90px}
+  .trk-table input[type=text]:focus{background:var(--bg3);border-radius:4px}
+  .td-pub{text-align:left;font-size:11px;min-width:140px}
+  .pct-pos{color:#0F6E56;font-weight:500}
+  .pct-neg{color:#A32D2D;font-weight:500}
+
+  /* AUDIENCIA */
+  .aud-section{margin-bottom:1.25rem}
+  .section-title{font-size:13px;font-weight:500;margin-bottom:.5rem;padding-bottom:4px;border-bottom:.5px solid var(--border)}
+  .aud-table{width:100%;border-collapse:collapse;font-size:12px}
+  .aud-table th{padding:7px 8px;background:var(--bg2);color:var(--text2);font-weight:500;border:.5px solid var(--border);text-align:left}
+  .aud-table td{padding:6px 8px;border:.5px solid var(--border)}
+  .aud-table input{width:100%;border:none;background:transparent;color:var(--text);outline:none;font-size:12px;padding:2px 3px}
+  .aud-table input:focus{background:var(--bg3);border-radius:4px}
+
+  /* DMS */
+  .dm-card{border:.5px solid var(--border);border-radius:var(--radius);padding:10px 12px;margin-bottom:8px;background:var(--bg)}
+  .dm-meta{font-size:10px;color:var(--text3);margin-bottom:4px}
+  .dm-text{font-size:13px;line-height:1.5}
+  .dm-insight{font-size:11px;color:#185FA5;margin-top:5px;font-style:italic}
+  .dm-del{float:right;font-size:11px;color:var(--text3);cursor:pointer;padding:2px 4px}
+
+  /* REFLEXION */
+  .refl-q{margin-bottom:1rem}
+  .refl-q label{font-size:12px;font-weight:500;display:block;margin-bottom:5px;line-height:1.4}
+  .refl-q textarea{width:100%;height:70px;font-size:13px;resize:vertical;background:var(--bg2)}
+
+  /* MODAL */
+  .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;justify-content:center;z-index:100;padding-bottom:env(safe-area-inset-bottom)}
+  .modal{background:var(--bg);border-radius:var(--radius-lg) var(--radius-lg) 0 0;padding:20px 16px;width:100%;max-width:500px;max-height:90dvh;overflow-y:auto}
+  .modal-handle{width:36px;height:4px;background:var(--border2);border-radius:99px;margin:0 auto 16px}
+  .modal h3{font-size:16px;font-weight:600;margin-bottom:12px}
+  .field{margin-bottom:12px}
+  .field label{font-size:11px;color:var(--text2);display:block;margin-bottom:4px}
+  .field input,.field select,.field textarea{width:100%;font-size:14px;background:var(--bg2)}
+  .field textarea{height:72px;resize:vertical}
+  .nc{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+  .nc-o{display:flex;align-items:center;gap:3px;padding:5px 10px;border-radius:99px;font-size:12px;font-weight:500;cursor:pointer;border:1.5px solid transparent;user-select:none}
+  .nc-o.sel{border-color:currentColor}
+  .ma{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap}
+  .ma button{font-size:13px;padding:8px 16px}
+  .det-note{font-size:13px;color:var(--text2);margin-top:6px;line-height:1.6;max-height:100px;overflow-y:auto}
+  .done-tog{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text2);cursor:pointer;margin-top:10px}
+  .done-tog input{width:18px;height:18px;cursor:pointer;accent-color:#378ADD}
+  .met-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:10px 0}
+  .met-grid div label{font-size:11px;color:var(--text2);display:block;margin-bottom:3px}
+  .met-grid div input{width:100%;font-size:16px;font-weight:500;text-align:center;background:var(--bg2)}
+  .open-net-btn{font-size:12px;padding:6px 12px;border-radius:99px;font-weight:500;margin-top:10px;display:inline-block}
+  .edit-form{background:var(--bg2);border-radius:var(--radius);padding:12px;margin-top:8px}
+  .edit-form .field{margin-bottom:8px}
+  .edit-form .field label{font-size:11px}
+
+  /* FORM grids */
+  .form-2col{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <h1>Gobernados por Nadie</h1>
+    <p>Calendario de contenido · Mario Flores Pedraza</p>
+  </div>
+  <div class="scroll-area" id="scroll-area">
+    <div id="view-cal"></div>
+    <div id="view-plan" style="display:none"></div>
+    <div id="view-trk" style="display:none"></div>
+    <div id="view-aud" style="display:none"></div>
+    <div id="view-dms" style="display:none"></div>
+    <div id="view-refl" style="display:none"></div>
+  </div>
+  <nav class="bottom-tabs" id="bottom-tabs">
+    <div class="bt active" data-tab="cal"><span class="bt-ic">📅</span>Calendario</div>
+    <div class="bt" data-tab="plan"><span class="bt-ic">📋</span>Plan</div>
+    <div class="bt" data-tab="trk"><span class="bt-ic">📊</span>Métricas</div>
+    <div class="bt" data-tab="aud"><span class="bt-ic">👥</span>Audiencia</div>
+    <div class="bt" data-tab="dms"><span class="bt-ic">💬</span>DMs</div>
+    <div class="bt" data-tab="refl"><span class="bt-ic">📝</span>Reflexión</div>
+  </nav>
+</div>
+<div id="mod-add" style="display:none"></div>
+<div id="mod-det" style="display:none"></div>
+
+<script>
+const NETS=[
+  {id:'x',  label:'X / Twitter',color:'#2C2C2A',bg:'#F1EFE8',ic:'X', url:'https://x.com'},
+  {id:'fb', label:'Facebook',   color:'#185FA5',bg:'#E6F1FB',ic:'FB',url:'https://facebook.com'},
+  {id:'ig', label:'Instagram',  color:'#D4537E',bg:'#FBEAF0',ic:'IG',url:'https://instagram.com'},
+  {id:'tt', label:'TikTok',     color:'#3C3489',bg:'#EEEDFE',ic:'TT',url:'https://tiktok.com/upload'},
+  {id:'sub',label:'Substack',   color:'#BA7517',bg:'#FAEEDA',ic:'SB',url:'https://substack.com'},
+];
+const SPECIAL={'2026-05-01':'Día del Trabajo','2026-05-05':'Cinco de Mayo','2026-05-10':'Día de las Madres'};
+const REFL_QS=[
+  '¿Qué tipo de contenido generó más conversación de calidad?',
+  '¿Qué publicación te dio MÁS arrepentimiento publicar? ¿Por qué?',
+  '¿Qué publicación te dio MÁS satisfacción? ¿Por qué?',
+  '¿Cuántos comentarios de DESCONOCIDOS recibiste en total?',
+  '¿Qué descubriste sobre tu audiencia real?',
+  '¿Qué patrón notás en los días/horas de mejor rendimiento?',
+  'Si cancelaras 3 publicaciones la próxima semana, ¿cuáles serían y por qué?',
+  '¿Qué formato (hilo / carrusel / video / ensayo) funcionó mejor para TI?',
+];
+const MASTER=[
+  {date:'2026-04-30',time:'09:00',net:'x',  title:"Hilo 1: 'El gancho'",star:false,note:'Hilo de apertura sobre el abstencionismo y la apatía política.'},
+  {date:'2026-04-30',time:'10:00',net:'fb', title:'Post 1: Reflexión personal',star:false,note:'Post de introducción personal sobre el libro.'},
+  {date:'2026-04-30',time:'11:00',net:'ig', title:'Carrusel 1: 10 frases',star:false,note:'Carrusel de 10 frases del libro. Diseño limpio, tipografía serif.'},
+  {date:'2026-04-30',time:'14:00',net:'x',  title:"Tweet #1: política / arte de lo justo",star:false,note:'Tweet suelto sobre la política como arte de lo justo.'},
+  {date:'2026-05-01',time:'09:00',net:'x',  title:'Tweet temático 1° de mayo',star:false,note:'Hoy es 1 de mayo. Ningún derecho fue regalado.'},
+  {date:'2026-05-01',time:'13:00',net:'x',  title:'Tweet #2 — Deseo/capricho',star:false,note:'Vivimos en repúblicas donde gobierna el deseo.'},
+  {date:'2026-05-01',time:'18:00',net:'tt', title:'★ Video: La apatía es complicidad',star:true,note:'HOOK: "Si no votás… estás trabajando para ellos gratis." 40 seg.'},
+  {date:'2026-05-01',time:'20:30',net:'fb', title:'Post 2 — Pregunta abierta',star:false,note:'¿En qué momento dejaste de creer que tu voto cambia algo?'},
+  {date:'2026-05-02',time:'11:00',net:'ig', title:'Carrusel: 8 filósofos',star:false,note:'10 slides. Platón, Aristóteles, Maquiavelo, Nietzsche, Rousseau, Foucault, Marx, Rawls.'},
+  {date:'2026-05-02',time:'16:00',net:'x',  title:'Tweet #4 — Nada que ocultar',star:false,note:'"No tengo nada que ocultar, no tengo nada que temer."'},
+  {date:'2026-05-02',time:'19:00',net:'fb', title:'Post 3 — Cita scroll 11pm',star:false,note:'Vivimos en una sociedad dormida.'},
+  {date:'2026-05-03',time:'09:00',net:'sub',title:'★★ Newsletter 2: Barco sin timón',star:true,note:'Extracto Cap. 1. Platón, líderes que no quieren gobernar.'},
+  {date:'2026-05-03',time:'12:00',net:'x',  title:'Tweet #5 — Resignación',star:false,note:'Tres formas de resignación que matan la democracia.'},
+  {date:'2026-05-03',time:'13:00',net:'fb', title:'Anuncio Substack — cercano',star:false,note:'Acabo de mandar el segundo extracto.'},
+  {date:'2026-05-03',time:'18:00',net:'tt', title:'★★ Clip de podcast #1',star:true,note:'Momento más confrontativo del episodio. 30-60 seg.'},
+  {date:'2026-05-03',time:'19:30',net:'x',  title:'Anuncio Substack en X',star:false,note:'Hoy mandé a mis suscriptores el segundo extracto.'},
+  {date:'2026-05-04',time:'10:00',net:'x',  title:'Hilo 2 — Provocación pura',star:false,note:'¿Y si no vivís en una democracia? 7 tweets.'},
+  {date:'2026-05-04',time:'18:00',net:'ig', title:'Imagen: distractores con traje',star:false,note:'"Ya no elegimos líderes: elegimos distractores con traje."'},
+  {date:'2026-05-04',time:'19:00',net:'x',  title:'Tweet #3 — Indignación',star:false,note:'La indignación sin acción se convierte en anestesia.'},
+  {date:'2026-05-05',time:'10:00',net:'x',  title:'Tweet Batalla de Puebla',star:false,note:'Hace 164 años un pueblo defendió algo que creía suyo.'},
+  {date:'2026-05-05',time:'14:00',net:'x',  title:'Tweet #6 — El nuevo Estado',star:false,note:'El nuevo Estado no necesita cárceles. Necesita datos.'},
+  {date:'2026-05-05',time:'18:00',net:'tt', title:'★ Video #2: El nuevo Estado',star:true,note:'HOOK: "El Estado ya no necesita meterte a la cárcel." 35 seg.'},
+  {date:'2026-05-05',time:'20:00',net:'fb', title:'Repost Hilo 2 adaptado',star:false,note:'¿Y si no vivís en una democracia? Adaptado para Facebook.'},
+  {date:'2026-05-06',time:'09:00',net:'x',  title:'Mini-hilo Habermas',star:false,note:'La democracia no se sostiene en el voto sino en el diálogo racional.'},
+  {date:'2026-05-06',time:'19:00',net:'fb', title:'Post lector + reflexión',star:false,note:'"Tu libro me hizo enojar. Pero no contigo, conmigo mismo."'},
+  {date:'2026-05-06',time:'19:00',net:'tt', title:'★★ Clip de podcast #2',star:true,note:'Momento de diagnóstico filosófico.'},
+  {date:'2026-05-07',time:'10:00',net:'x',  title:'Tweet #7 — Degradación lenta',star:false,note:'La democracia no muere por golpes de Estado.'},
+  {date:'2026-05-07',time:'18:00',net:'ig', title:'Carrusel: 7 verdades incómodas',star:false,note:'9 slides. Fondo crema.'},
+  {date:'2026-05-07',time:'20:30',net:'fb', title:'Post conversacional — degradación',star:false,note:'¿Lo notás también? Las elecciones siguen pero algo se vació.'},
+  {date:'2026-05-08',time:'10:00',net:'x',  title:'Hilo 3: 7 frases para ti',star:false,note:'Releí el libro y hay frases que escribí sin saber para quién.'},
+  {date:'2026-05-08',time:'18:00',net:'tt', title:'★ Video #3: La simulación',star:true,note:'HOOK: "¿Y si te dijera que tu voto vale menos que tus likes?" 40 seg.'},
+  {date:'2026-05-08',time:'19:00',net:'fb', title:'Post pregunta-conversación',star:false,note:'¿A qué político obligarías a leer un libro?'},
+  {date:'2026-05-09',time:'11:00',net:'ig', title:'Imagen: tres confusiones',star:false,note:'"Hemos confundido la libertad con el ruido…"'},
+  {date:'2026-05-09',time:'19:00',net:'x',  title:'Tweet #8 — Conciencias apagadas',star:false,note:'La democracia peligra por millones de conciencias apagadas.'},
+  {date:'2026-05-09',time:'19:00',net:'fb', title:'Post breve sábado',star:false,note:'La democracia no muere de un golpe. Muere de costumbre.'},
+  {date:'2026-05-10',time:'09:00',net:'sub',title:'★★ Newsletter 3: Democracia simulacro',star:true,note:'Asunto: "La democracia como simulacro". Ford, Baudrillard.'},
+  {date:'2026-05-10',time:'12:00',net:'fb', title:'Post Día de las Madres + libro',star:false,note:'"Ternura organizada" como forma de hacer justicia.'},
+  {date:'2026-05-10',time:'13:00',net:'ig', title:'Post Madres — adaptado IG',star:false,note:'Mismo texto Facebook. Caption con imagen sobria.'},
+  {date:'2026-05-10',time:'19:30',net:'x',  title:'Tweet cierre de ciclo',star:false,note:'Estos diez días publiqué tres hilos. Lo más importante fueron los DMs.'},
+];
+const SEED={
+  '2026-04-30_09:00_x': {likes:0,comments:0,comments_unk:0,shares:0,views:14,dms:0,seg_before:859,seg_after:859,notes:'Sin movimiento real'},
+  '2026-04-30_10:00_fb':{likes:17,comments:0,comments_unk:0,shares:0,views:796,dms:0,seg_before:1729,seg_after:1729,notes:'Sin movimiento real'},
+  '2026-04-30_11:00_ig':{likes:7,comments:1,comments_unk:0,shares:0,views:171,dms:0,seg_before:79,seg_after:80,notes:'Sin movimiento real'},
+  '2026-04-30_14:00_x': {likes:0,comments:0,comments_unk:0,shares:0,views:7,dms:0,seg_before:859,seg_after:859,notes:'Sin movimiento real'},
+  '2026-05-01_09:00_x': {likes:0,comments:0,comments_unk:0,shares:0,views:10,dms:0,seg_before:859,seg_after:859,notes:'Sin movimiento real'},
+  '2026-05-01_13:00_x': {likes:0,comments:0,comments_unk:0,shares:0,views:3,dms:0,seg_before:859,seg_after:859,notes:'Sin movimiento real'},
+  '2026-05-01_18:00_tt':{likes:19,comments:10,comments_unk:5,shares:1,views:339,dms:0,seg_before:139,seg_after:145,notes:'Algo de movimiento'},
+  '2026-05-01_20:30_fb':{likes:2,comments:2,comments_unk:0,shares:0,views:166,dms:0,seg_before:1729,seg_after:1730,notes:'Sin movimiento real'},
+};
+
+// STATE
+let store={};
+try{store=JSON.parse(localStorage.getItem('gpn_v6')||'{}');}catch(e){}
+if(!store.done)    store.done={};
+if(!store.metrics) store.metrics={};
+if(!store.edits)   store.edits={};
+if(!store.custom)  store.custom=[];
+if(!store.aud)     store.aud={ig:{before:79,after:'',notes:''},fb:{before:1729,after:'',notes:''},x:{before:859,after:'',notes:''},tt:{before:142,after:'',notes:''},sub:{before:4,after:'',notes:''}};
+if(!store.book)    store.book={copies:'',substack_new:'1',podcasts:'1'};
+if(!store.dms)     store.dms=[];
+if(!store.refl)    store.refl={};
+Object.keys(SEED).forEach(k=>{if(!store.metrics[k])store.metrics[k]=SEED[k];});
+function save(){try{localStorage.setItem('gpn_v6',JSON.stringify(store));}catch(e){}}
+
+function origKey(p){return p._origKey||p.date+'_'+p.time+'_'+p.net;}
+function effective(p){const ok=origKey(p);const ed=store.edits[ok];return ed?{...p,...ed,_origKey:ok}:{...p,_origKey:ok};}
+function allPosts(){return[...MASTER.map(p=>({...p,_origKey:p.date+'_'+p.time+'_'+p.net,custom:false})),...store.custom.map(p=>({...p,custom:true}))];}
+function net(id){return NETS.find(n=>n.id===id)||NETS[0];}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function fmtDate(ds){
+  const[y,m,d]=ds.split('-');
+  const D=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'],M=['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  return D[new Date(+y,+m-1,+d).getDay()]+' '+parseInt(d)+' '+M[+m];
+}
+
+let viewY=2026,viewM=4;
+const today=new Date();
+let activeNets=NETS.map(n=>n.id);
+let currentTab='cal';
+
+// DRAG state (touch)
+let dragOk=null;
+
+// TABS
+document.querySelectorAll('.bt').forEach(t=>{
+  t.addEventListener('click',()=>{
+    document.querySelectorAll('.bt').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');currentTab=t.dataset.tab;
+    ['cal','plan','trk','aud','dms','refl'].forEach(v=>document.getElementById('view-'+v).style.display=currentTab===v?'':'none');
+    document.getElementById('scroll-area').scrollTop=0;
+    if(currentTab==='cal')  renderCal();
+    if(currentTab==='plan') renderPlan();
+    if(currentTab==='trk')  renderTrk();
+    if(currentTab==='aud')  renderAud();
+    if(currentTab==='dms')  renderDms();
+    if(currentTab==='refl') renderRefl();
+  });
+});
+
+// CALENDAR
+function daysInMonth(y,m){return new Date(y,m+1,0).getDate();}
+function firstDay(y,m){let d=new Date(y,m,1).getDay();return d===0?6:d-1;}
+
+function renderCal(){
+  const v=document.getElementById('view-cal');
+  const MNS=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  // filters
+  const nfsHtml=NETS.map(n=>`<div class="nf ${activeNets.includes(n.id)?'':'off'}" data-net="${n.id}" style="background:${n.bg};color:${n.color}">${n.ic} ${n.label.split('/')[0].trim()}</div>`).join('');
+  const DH=['Lu','Ma','Mi','Ju','Vi','Sa','Do'];
+  const fd=firstDay(viewY,viewM),dim=daysInMonth(viewY,viewM),pDim=daysInMonth(viewY,viewM-1);
+  let cells=DH.map(d=>`<div class="cal-dh">${d}</div>`).join('');
+  for(let i=0;i<fd;i++) cells+=`<div class="dc om"><div class="dn">${pDim-fd+1+i}</div></div>`;
+  for(let d=1;d<=dim;d++){
+    const isT=viewY===today.getFullYear()&&viewM===today.getMonth()&&d===today.getDate();
+    const ds=`${viewY}-${String(viewM+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const sp=SPECIAL[ds];
+    const dp=allPosts().map(effective).filter(p=>p.date===ds&&activeNets.includes(p.net)).sort((a,b)=>a.time.localeCompare(b.time));
+    const pills=dp.map(p=>{const n=net(p.net);const ok=origKey(p);const isEdited=!!store.edits[ok];const isDone=store.done[ok];const hasMet=store.metrics[ok]&&(store.metrics[ok].views||store.metrics[ok].likes);
+      return`<div class="pp${isDone?' done':''}${isEdited?' edited':''}" style="background:${n.bg};color:${n.color}" data-ok="${ok}" draggable="true">
+        <span style="font-size:8px;flex-shrink:0;font-weight:600">${n.ic}</span>
+        <span class="pt">${p.star?'★ ':''}<span style="opacity:.6;font-size:8px">${p.time}</span> ${esc(p.title)}${hasMet?' ✓':''}</span>
+      </div>`;}).join('');
+    cells+=`<div class="dc${isT?' today':''}${sp?' hl':''}" data-date="${ds}">
+      <div class="dn">${d}</div>
+      ${sp?`<div class="dlabel">${sp}</div>`:''}
+      ${pills}
+      <div class="add-day" data-date="${ds}">+</div>
+    </div>`;
+  }
+  for(let d=1;d<=42-fd-dim;d++) cells+=`<div class="dc om"><div class="dn">${d}</div></div>`;
+
+  v.innerHTML=`
+    <div class="nfs" id="nfs">${nfsHtml}</div>
+    <div class="cal-toolbar">
+      <button id="prev">&#8249;</button>
+      <span class="cal-title">${MNS[viewM]} ${viewY}</span>
+      <button id="next">&#8250;</button>
+    </div>
+    <div class="cal-grid" id="cal-grid">${cells}</div>`;
+
+  // filters
+  v.querySelectorAll('.nf').forEach(el=>{el.addEventListener('click',()=>{const id=el.dataset.net;if(activeNets.includes(id)){if(activeNets.length>1)activeNets=activeNets.filter(x=>x!==id);}else activeNets.push(id);renderCal();});});
+  document.getElementById('prev').addEventListener('click',()=>{viewM--;if(viewM<0){viewM=11;viewY--;}renderCal();});
+  document.getElementById('next').addEventListener('click',()=>{viewM++;if(viewM>11){viewM=0;viewY++;}renderCal();});
+  v.querySelectorAll('.add-day').forEach(el=>{el.addEventListener('click',e=>{e.stopPropagation();openAdd(el.dataset.date);});});
+
+  // pill interactions
+  v.querySelectorAll('.pp').forEach(el=>{
+    el.addEventListener('click',e=>{e.stopPropagation();openDet(el.dataset.ok);});
+    // Desktop drag
+    el.addEventListener('dragstart',e=>{dragOk=el.dataset.ok;el.classList.add('dragging');e.stopPropagation();});
+    el.addEventListener('dragend',()=>el.classList.remove('dragging'));
+    // Touch drag
+    el.addEventListener('touchstart',e=>{dragOk=el.dataset.ok;},{ passive:true });
+  });
+
+  // drop zones
+  v.querySelectorAll('.dc:not(.om)').forEach(dc=>{
+    dc.addEventListener('dragover',e=>{e.preventDefault();dc.classList.add('drag-over');});
+    dc.addEventListener('dragleave',()=>dc.classList.remove('drag-over'));
+    dc.addEventListener('drop',e=>{e.preventDefault();dc.classList.remove('drag-over');movePost(dragOk,dc.dataset.date);});
+    // Touch drop
+    dc.addEventListener('touchend',e=>{
+      if(!dragOk) return;
+      const touch=e.changedTouches[0];
+      const el=document.elementFromPoint(touch.clientX,touch.clientY);
+      const targetDc=el&&el.closest('.dc:not(.om)');
+      if(targetDc&&targetDc.dataset.date) movePost(dragOk,targetDc.dataset.date);
+      dragOk=null;
+      v.querySelectorAll('.dc').forEach(x=>x.classList.remove('drag-over'));
+    },{passive:true});
+  });
+}
+
+function movePost(ok,newDate){
+  if(!ok||!newDate) return;
+  const raw=allPosts().find(p=>origKey(p)===ok);
+  if(!raw) return;
+  const cur=effective(raw);
+  if(cur.date===newDate) return;
+  if(raw.custom){const idx=store.custom.findIndex(x=>origKey(x)===ok);if(idx>=0)store.custom[idx]={...store.custom[idx],date:newDate};}
+  else store.edits[ok]={...(store.edits[ok]||{}),title:cur.title,time:cur.time,net:cur.net,note:cur.note,date:newDate};
+  save();renderCal();
+}
+
+// PLAN
+function renderPlan(){
+  const days=[...new Set(allPosts().map(p=>effective(p).date))].sort();
+  document.getElementById('view-plan').innerHTML=days.map(date=>{
+    const sp=SPECIAL[date]||'';
+    const dp=allPosts().map(effective).filter(p=>p.date===date).sort((a,b)=>a.time.localeCompare(b.time));
+    const items=dp.map(p=>{const n=net(p.net);const ok=origKey(p);const isDone=store.done[ok];const m=store.metrics[ok]||{};const hasMet=m.views||m.likes;const isEdited=!!store.edits[ok];
+      return`<div class="pi${isDone?' done':''}" data-ok="${ok}">
+        <div class="pi-l"><span class="pi-t">${p.time}</span><span style="font-size:13px;font-weight:600;color:${net(p.net).color}">${net(p.net).ic}</span></div>
+        <div class="pi-b">
+          <div class="pi-title">${esc(p.title)}${isEdited?'<span class="edit-badge">editado</span>':''}</div>
+          <div class="pi-desc">${hasMet?`Vistas: ${m.views||0} · Likes: ${m.likes||0} · Coment: ${m.comments||0}`:esc((p.note||'').slice(0,80))+(p.note&&p.note.length>80?'…':'')}</div>
+        </div>
+        <input type="checkbox" style="width:18px;height:18px;accent-color:#378ADD;cursor:pointer;margin-top:2px;flex-shrink:0" ${isDone?'checked':''} data-ok="${ok}">
+      </div>`;}).join('');
+    const done=dp.filter(p=>store.done[origKey(p)]).length;
+    return`<div class="plan-day"><div class="pdh">${fmtDate(date)}${sp?` · <em style="color:#BA7517;font-style:normal">${sp}</em>`:''}<span class="badge">${done}/${dp.length}</span></div>${items}</div>`;
+  }).join('');
+  document.querySelectorAll('#view-plan .pi').forEach(el=>{el.addEventListener('click',e=>{if(e.target.type!=='checkbox')openDet(el.dataset.ok);});});
+  document.querySelectorAll('#view-plan input[type=checkbox]').forEach(el=>{el.addEventListener('change',e=>{store.done[el.dataset.ok]=e.target.checked;save();});});
+}
+
+// TRACKING
+function renderTrk(){
+  const DAYS_ES=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+  const headers=['Fecha','Día','Red','Publicación','Likes','Coment.','Desc.','Compart.','Vistas','DMs','Seg.antes','Seg.desp.','Netos','Notas'];
+  let html=`<thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>`;
+  allPosts().map(effective).sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time)).forEach(p=>{
+    const ok=origKey(p);const n=net(p.net);const m=store.metrics[ok]||{};
+    const[y,mo,d]=p.date.split('-');
+    const dayName=DAYS_ES[new Date(+y,+mo-1,+d).getDay()];
+    const before=parseInt(m.seg_before||0),after=parseInt(m.seg_after||0);
+    const netos=(m.seg_after!==undefined&&m.seg_after!==''&&m.seg_before!==undefined&&m.seg_before!=='')?after-before:'';
+    const netHtml=netos===''?'—':netos>0?`<span class="pct-pos">+${netos}</span>`:(netos<0?`<span class="pct-neg">${netos}</span>`:'0');
+    const isEdited=!!store.edits[ok];
+    html+=`<tr>
+      <td>${parseInt(d)}/${parseInt(mo)}</td>
+      <td>${dayName}</td>
+      <td><span style="color:${n.color};background:${n.bg};padding:2px 5px;border-radius:99px;font-size:10px;font-weight:600">${n.ic}</span></td>
+      <td class="td-pub">${p.star?'★ ':''}<strong>${esc(p.title)}</strong>${isEdited?'<span class="edit-badge">ed.</span>':''}</td>
+      ${['likes','comments','comments_unk','shares','views','dms','seg_before','seg_after'].map(f=>`<td><input type="number" min="0" value="${m[f]!==undefined&&m[f]!==''?m[f]:''}" data-ok="${ok}" data-field="${f}" placeholder="—"></td>`).join('')}
+      <td>${netHtml}</td>
+      <td class="td-pub" style="text-align:left"><input type="text" value="${esc(m.notes||'')}" data-ok="${ok}" data-field="notes" placeholder="observación…"></td>
+    </tr>`;
+  });
+  html+='</tbody>';
+  document.getElementById('view-trk').innerHTML=`<p style="font-size:11px;color:var(--text2);margin-bottom:8px">Desliza horizontalmente para ver todas las columnas.</p><div class="trk-wrap"><table class="trk-table">${html}</table></div>`;
+  document.querySelectorAll('.trk-table input').forEach(el=>{
+    el.addEventListener('change',()=>{
+      const ok=el.dataset.ok,f=el.dataset.field;
+      if(!store.metrics[ok])store.metrics[ok]={};
+      store.metrics[ok][f]=el.type==='number'?(el.value===''?'':parseInt(el.value)||0):el.value;
+      save();
+      if(f==='seg_before'||f==='seg_after') renderTrk();
+    });
+  });
+}
+
+// AUDIENCIA
+function renderAud(){
+  const rows=['ig','fb','x','tt','sub'].map(nid=>{const n=net(nid);const a=store.aud[nid]||{};
+    const diff=(a.after!==''&&a.after!==undefined&&a.before!==''&&a.before!==undefined)?parseInt(a.after)-parseInt(a.before):'';
+    const pct=diff!==''&&a.before?((diff/parseInt(a.before))*100).toFixed(1):'';
+    const dH=diff===''?'—':diff>=0?`<span class="pct-pos">+${diff}</span>`:`<span class="pct-neg">${diff}</span>`;
+    const pH=pct===''?'—':parseFloat(pct)>=0?`<span class="pct-pos">+${pct}%</span>`:`<span class="pct-neg">${pct}%</span>`;
+    return`<tr><td><span style="color:${n.color};background:${n.bg};padding:2px 7px;border-radius:99px;font-size:11px">${n.ic} ${n.label}</span></td>
+      <td style="text-align:center;font-weight:500">${a.before||'—'}</td>
+      <td><input type="number" value="${a.after||''}" data-nid="${nid}" data-f="after" placeholder="—"></td>
+      <td style="text-align:center">${dH}</td><td style="text-align:center">${pH}</td>
+      <td><input type="text" value="${esc(a.notes||'')}" data-nid="${nid}" data-f="notes" placeholder="…"></td></tr>`;
+  }).join('');
+  const bk=store.book||{};
+  document.getElementById('view-aud').innerHTML=`
+    <div class="aud-section"><div class="section-title">Seguidores — Antes (29 abr) vs Después (11 may)</div>
+      <div style="overflow-x:auto"><table class="aud-table"><thead><tr><th>Plataforma</th><th>Antes</th><th>Después</th><th>Dif.</th><th>%</th><th>Notas</th></tr></thead><tbody>${rows}</tbody></table></div></div>
+    <div class="aud-section"><div class="section-title">Ventas del libro</div>
+      <table class="aud-table"><thead><tr><th>Métrica</th><th>Valor</th></tr></thead><tbody>
+        <tr><td>Copias vendidas</td><td><input type="number" value="${bk.copies||''}" data-bk="copies" placeholder="—"></td></tr>
+        <tr><td>Suscriptores Substack nuevos</td><td><input type="number" value="${bk.substack_new||1}" data-bk="substack_new" placeholder="—"></td></tr>
+        <tr><td>Invitaciones podcasts/eventos</td><td><input type="number" value="${bk.podcasts||1}" data-bk="podcasts" placeholder="—"></td></tr>
+      </tbody></table></div>`;
+  document.querySelectorAll('#view-aud input[data-nid]').forEach(el=>{el.addEventListener('change',()=>{store.aud[el.dataset.nid][el.dataset.f]=el.value;save();renderAud();});});
+  document.querySelectorAll('#view-aud input[data-bk]').forEach(el=>{el.addEventListener('change',()=>{store.book[el.dataset.bk]=el.value;save();});});
+}
+
+// DMS
+function renderDms(){
+  const existing=store.dms.map((dm,i)=>`<div class="dm-card"><span class="dm-del" data-i="${i}">✕</span><div class="dm-meta">${esc(dm.date)} · ${esc(dm.plat)} · ${esc(dm.tipo||'—')}</div><div class="dm-text">${esc(dm.text)}</div>${dm.insight?`<div class="dm-insight">→ ${esc(dm.insight)}</div>`:''}</div>`).join('');
+  document.getElementById('view-dms').innerHTML=`
+    <div class="section-title" style="margin-bottom:.75rem">Comentarios y DMs que valen oro</div>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:12px">Anota textualmente. No interpretes.</p>
+    <div class="form-2col" style="margin-bottom:8px">
+      <input id="dm-date" placeholder="Fecha (ej: 1-may)" style="background:var(--bg2)">
+      <select id="dm-plat" style="background:var(--bg2)">${NETS.map(n=>`<option value="${n.label}">${n.ic} ${n.label}</option>`).join('')}</select>
+      <input id="dm-tipo" placeholder="comentario / DM" style="background:var(--bg2)">
+      <input id="dm-ins" placeholder="¿Te abrió los ojos?" style="background:var(--bg2)">
+    </div>
+    <textarea id="dm-txt" placeholder="Texto textual del comentario o DM…" style="width:100%;height:70px;font-size:13px;margin-bottom:10px;background:var(--bg2)"></textarea>
+    <button id="dm-save" style="margin-bottom:1.25rem;font-size:13px">Guardar comentario</button>
+    ${existing||'<p style="font-size:13px;color:var(--text3)">Aún no hay comentarios guardados.</p>'}`;
+  document.getElementById('dm-save').addEventListener('click',()=>{
+    const t=document.getElementById('dm-txt').value.trim();if(!t)return;
+    store.dms.push({date:document.getElementById('dm-date').value.trim(),plat:document.getElementById('dm-plat').value,tipo:document.getElementById('dm-tipo').value.trim(),text:t,insight:document.getElementById('dm-ins').value.trim()});
+    save();renderDms();
+  });
+  document.querySelectorAll('#view-dms .dm-del').forEach(el=>{el.addEventListener('click',()=>{store.dms.splice(parseInt(el.dataset.i),1);save();renderDms();});});
+}
+
+// REFLEXION
+function renderRefl(){
+  document.getElementById('view-refl').innerHTML=`
+    <div class="section-title" style="margin-bottom:.75rem">Reflexión cualitativa — cierre del periodo</div>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:16px">Llenar el sábado 9 o domingo 10 de mayo. Honestidad sobre pulido.</p>
+    ${REFL_QS.map((q,i)=>`<div class="refl-q"><label>${i+1}. ${q}</label><textarea data-qi="${i}" placeholder="Tu respuesta…">${esc(store.refl[i]||'')}</textarea></div>`).join('')}
+    <button id="refl-save" style="font-size:14px;padding:10px 20px;margin-top:.5rem;width:100%">Guardar reflexión</button>
+    <p id="refl-ok" style="font-size:12px;color:#0F6E56;margin-top:8px;display:none;text-align:center">✓ Guardado correctamente</p>`;
+  document.getElementById('refl-save').addEventListener('click',()=>{
+    document.querySelectorAll('#view-refl textarea[data-qi]').forEach(el=>{store.refl[parseInt(el.dataset.qi)]=el.value;});
+    save();const ok=document.getElementById('refl-ok');ok.style.display='block';setTimeout(()=>ok.style.display='none',2500);
+  });
+}
+
+// ADD MODAL
+function openAdd(date){
+  const m=document.getElementById('mod-add');
+  const nOpts=NETS.map(n=>`<div class="nc-o" data-net="${n.id}" style="background:${n.bg};color:${n.color}">${n.ic} ${n.label}</div>`).join('');
+  m.innerHTML=`<div class="modal-bg"><div class="modal">
+    <div class="modal-handle"></div>
+    <h3>Nuevo post — ${fmtDate(date)}</h3>
+    <div class="field"><label>Título</label><input id="p-t" placeholder="Título del post"/></div>
+    <div class="field"><label>Hora</label><input id="p-h" type="time" value="10:00"/></div>
+    <div class="field"><label>Nota / copy</label><textarea id="p-n" placeholder="Texto, guion, descripción…"></textarea></div>
+    <div class="field"><label>Red social</label><div class="nc">${nOpts}</div></div>
+    <div class="ma"><button id="c-add">Cancelar</button><button id="s-add" style="background:#378ADD;color:#fff;border-color:#378ADD">Guardar</button></div>
+  </div></div>`;
+  m.style.display='block';
+  let selNet=null;
+  m.querySelectorAll('.nc-o').forEach(el=>{el.addEventListener('click',()=>{m.querySelectorAll('.nc-o').forEach(x=>x.classList.remove('sel'));el.classList.add('sel');selNet=el.dataset.net;});});
+  m.querySelector('#c-add').addEventListener('click',()=>{m.style.display='none';m.innerHTML='';});
+  m.querySelector('#s-add').addEventListener('click',()=>{
+    const t=m.querySelector('#p-t').value.trim();if(!t){m.querySelector('#p-t').focus();return;}if(!selNet){alert('Selecciona una red.');return;}
+    const np={date,time:m.querySelector('#p-h').value,net:selNet,title:t,note:m.querySelector('#p-n').value.trim(),star:false,custom:true,_origKey:Date.now()+'_c'};
+    store.custom.push(np);save();m.style.display='none';m.innerHTML='';renderCal();
+  });
+  m.querySelector('.modal-bg').addEventListener('click',e=>{if(e.target===e.currentTarget){m.style.display='none';m.innerHTML='';}});
+}
+
+// DETAIL + EDIT MODAL
+function openDet(ok){
+  const raw=allPosts().find(p=>origKey(p)===ok);if(!raw)return;
+  const p=effective(raw);const n=net(p.net);const isEdited=!!store.edits[ok];
+  const m=document.getElementById('mod-det');
+
+  function build(editMode){
+    const mv=store.metrics[ok]||{};const isDone=store.done[ok]||false;
+    const nOpts=NETS.map(nx=>`<div class="nc-o${p.net===nx.id?' sel':''}" data-net="${nx.id}" style="background:${nx.bg};color:${nx.color}">${nx.ic} ${nx.label}</div>`).join('');
+    m.innerHTML=`<div class="modal-bg"><div class="modal">
+      <div class="modal-handle"></div>
+      <h3>${p.star?'★ ':''}${esc(p.title)}${isEdited?'<span class="edit-badge">editado</span>':''}</h3>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:10px">${fmtDate(p.date)} · ${p.time} · <span style="color:${n.color};font-weight:600">${n.ic} ${n.label}</span></div>
+      ${!editMode?`<div class="det-note">${esc(p.note||'—')}</div>`:''}
+      ${editMode?`<div class="edit-form">
+        <div class="field"><label>Título</label><input id="e-title" value="${esc(p.title)}"/></div>
+        <div class="field form-2col">
+          <div><label>Fecha</label><input id="e-date" type="date" value="${p.date}"/></div>
+          <div><label>Hora</label><input id="e-time" type="time" value="${p.time}"/></div>
+        </div>
+        <div class="field"><label>Red social</label><div class="nc" id="e-nc">${nOpts}</div></div>
+        <div class="field"><label>Nota / copy</label><textarea id="e-note" style="height:80px">${esc(p.note||'')}</textarea></div>
+      </div>`:''}
+      <label class="done-tog"><input type="checkbox" id="dcb" ${isDone?'checked':''}> Marcar como publicado</label>
+      <div style="margin-top:14px;font-size:12px;font-weight:500;color:var(--text2);margin-bottom:6px">Métricas rápidas</div>
+      <div class="met-grid">
+        ${['likes:Likes','comments:Coment.','views:Vistas'].map(s=>{const[f,l]=s.split(':');return`<div><label>${l}</label><input type="number" value="${mv[f]!==undefined&&mv[f]!==''?mv[f]:''}" data-ok="${ok}" data-field="${f}" placeholder="0" class="met-inp"></div>`;}).join('')}
+      </div>
+      <a href="${n.url}" target="_blank" class="open-net-btn" style="background:${n.bg};color:${n.color};border:1.5px solid ${n.color}">Abrir ${n.label} →</a>
+      <div class="ma">
+        ${isEdited?`<button id="revert-btn">Revertir original</button>`:''}
+        ${!editMode?`<button id="edit-btn">✏ Editar</button>`:`<button id="save-edit" style="background:#378ADD;color:#fff;border-color:#378ADD">Guardar cambios</button>`}
+        ${raw.custom?`<button id="del-p" style="color:#A32D2D">Eliminar</button>`:''}
+        <button id="cls-d">Cerrar</button>
+      </div>
+    </div></div>`;
+    m.style.display='block';
+    let selNet=p.net;
+    if(editMode) m.querySelectorAll('#e-nc .nc-o').forEach(el=>{el.addEventListener('click',()=>{m.querySelectorAll('#e-nc .nc-o').forEach(x=>x.classList.remove('sel'));el.classList.add('sel');selNet=el.dataset.net;});});
+    m.querySelector('#dcb').addEventListener('change',e=>{store.done[ok]=e.target.checked;save();if(currentTab==='plan')renderPlan();});
+    m.querySelectorAll('.met-inp').forEach(el=>{el.addEventListener('change',()=>{if(!store.metrics[ok])store.metrics[ok]={};store.metrics[ok][el.dataset.field]=parseInt(el.value)||0;save();renderCal();});});
+    if(!editMode&&m.querySelector('#edit-btn')) m.querySelector('#edit-btn').addEventListener('click',()=>build(true));
+    if(editMode&&m.querySelector('#save-edit')) m.querySelector('#save-edit').addEventListener('click',()=>{
+      const newTitle=m.querySelector('#e-title').value.trim();if(!newTitle)return;
+      const newDate=m.querySelector('#e-date').value,newTime=m.querySelector('#e-time').value,newNote=m.querySelector('#e-note').value.trim();
+      if(raw.custom){const idx=store.custom.findIndex(x=>origKey(x)===ok);if(idx>=0)store.custom[idx]={...store.custom[idx],title:newTitle,date:newDate,time:newTime,net:selNet,note:newNote};}
+      else store.edits[ok]={title:newTitle,date:newDate,time:newTime,net:selNet,note:newNote};
+      save();m.style.display='none';m.innerHTML='';renderCal();if(currentTab==='plan')renderPlan();if(currentTab==='trk')renderTrk();
+    });
+    if(m.querySelector('#revert-btn')) m.querySelector('#revert-btn').addEventListener('click',()=>{if(confirm('¿Revertir al contenido original?')){delete store.edits[ok];save();m.style.display='none';m.innerHTML='';renderCal();if(currentTab==='plan')renderPlan();if(currentTab==='trk')renderTrk();}});
+    if(raw.custom&&m.querySelector('#del-p')) m.querySelector('#del-p').addEventListener('click',()=>{if(confirm('¿Eliminar este post?')){store.custom=store.custom.filter(x=>origKey(x)!==ok);save();m.style.display='none';m.innerHTML='';renderCal();}});
+    m.querySelector('#cls-d').addEventListener('click',()=>{m.style.display='none';m.innerHTML='';});
+    m.querySelector('.modal-bg').addEventListener('click',e=>{if(e.target===e.currentTarget){m.style.display='none';m.innerHTML='';}});
+  }
+  build(false);
+}
+
+// INIT
+renderCal();
+</script>
+
+<!-- Service Worker registration -->
+<script>
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js').catch(()=>{});
+}
+</script>
+</body>
+</html>
